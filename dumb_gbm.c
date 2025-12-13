@@ -404,6 +404,47 @@ dumb_bo_destroy(struct gbm_bo *_bo)
     free(bo);
 }
 
+/* surface procs are implemented as stubs */
+static struct gbm_surface*
+dumb_surface_create(struct gbm_device *gbm,
+                    uint32_t width, uint32_t height,
+                    uint32_t format, uint32_t flags,
+                    const uint64_t *modifiers,
+                    const unsigned count)
+{
+    errno = ENOSYS;
+    return NULL;
+}
+
+static struct gbm_bo*
+dumb_surface_lock_front_buffer(struct gbm_surface *surface)
+{
+    errno = ENOSYS;
+    return NULL;
+}
+
+static void
+dumb_surface_release_buffer(struct gbm_surface *surface,
+                            struct gbm_bo *bo)
+{
+    errno = ENOSYS;
+}
+
+static int
+dumb_surface_has_free_buffers(struct gbm_surface *surface)
+{
+    errno = ENOSYS;
+    return 0;
+}
+
+static void
+dumb_surface_destroy(struct gbm_surface *surface)
+{
+    /* free(surface) */
+
+    errno = ENOSYS;
+}
+
 /* vvv Loader stuff vvv */
 static void
 dumb_device_create_v0(struct gbm_device_v0 *dumb)
@@ -426,6 +467,17 @@ dumb_device_create_v0(struct gbm_device_v0 *dumb)
     SET_PROC(bo_get_offset);
     SET_PROC(bo_get_modifier);
     SET_PROC(bo_destroy);
+    SET_PROC(surface_create);
+
+    /**
+     * For some reason, the dri libgbm backend
+     * from mesa doesn't implement these three
+     */
+    SET_PROC(surface_lock_front_buffer);
+    SET_PROC(surface_release_buffer);
+    SET_PROC(surface_has_free_buffers);
+
+    SET_PROC(surface_destroy);
 
     #undef SET_PROC
 }
