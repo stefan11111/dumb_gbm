@@ -1,9 +1,12 @@
 .POSIX:
 
 XCFLAGS = ${CFLAGS} -std=c99 -fPIC \
-		  -Wall -Wextra -Wpedantic \
-		  -Wno-unused-parameter
-XLDFLAGS = ${LDFLAGS} -shared -Wl,-soname,dumb_gbm.so
+		  -Wall -Wextra -Wpedantic -Wmissing-prototypes \
+		  -Wno-unused-parameter \
+		  $(shell pkg-config --cflags libdrm)
+
+XLDFLAGS = ${LDFLAGS} $(shell pkg-config --libs libdrm) \
+		  -shared -Wl,-soname,dumb_gbm.so
 
 LIBDIR ?= /lib64
 

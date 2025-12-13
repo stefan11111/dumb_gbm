@@ -31,10 +31,17 @@
 #include "gbm_backend_abi.h"
 
 struct gbm_dumb_bo {
-   struct gbm_bo base;
+   struct gbm_bo base; /* Needs to be the first field */
+
    uint64_t size;
    void *map;
 };
 
+struct gbm_dumb_device {
+    struct gbm_device base; /* Needs to be the first field */
+
+    int has_dmabuf_import;
+    int has_dmabuf_export;
+};
 
 #endif /* DUMB_GBM_H */
