@@ -39,6 +39,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h> /* for O_RDWR, which DRM_RDWR is defined as */
+
+#ifdef STRICT
+#include <assert.h>
+#endif
 
 #include <sys/mman.h>
 
@@ -254,7 +259,7 @@ dumb_bo_import(struct gbm_device *gbm, uint32_t type,
     }
 }
 
-static void *
+static void*
 dumb_bo_map(struct gbm_bo *_bo,
             uint32_t x, uint32_t y,
             uint32_t width, uint32_t height,
@@ -275,6 +280,51 @@ dumb_bo_map(struct gbm_bo *_bo,
     return NULL;
 }
 
+static void
+dumb_bo_unmap(struct gbm_bo *_bo, void *map_data)
+{
+#ifdef STRICT
+    struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
+
+    assert(map_data >= bo->map);
+    assert((char*)map_data < ((char*)bo->map + bo->size));
+#endif
+}
+
+static int
+dumb_bo_write(struct gbm_bo *_bo, const void *buf, size_t data)
+{
+    struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
+
+    if (!bo->map) {
+        /* This really shouldn't happen */
+        return -1;
+    }
+
+    memcpy(bo->map, buf, data);
+    return 0;
+}
+
+static int
+dumb_bo_get_fd(struct gbm_bo *bo)
+{
+    int ret;
+    int prime_fd = -1;
+
+    struct gbm_dumb_device *dumb = (struct gbm_dumb_device*)bo->gbm;
+
+    if (!dumb->has_dmabuf_export) {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    ret = drmPrimeHandleToFD(dumb->base.v0.fd, bo->v0.handle.u32, DRM_RDWR, &prime_fd);
+    if (!ret) {
+        return prime_fd;
+    }
+    return -1;
+}
+
 /* vvv Loader stuff vvv */
 static void
 dumb_device_create_v0(struct gbm_device_v0 *dumb)
@@ -287,6 +337,9 @@ dumb_device_create_v0(struct gbm_device_v0 *dumb)
     SET_PROC(bo_create);
     SET_PROC(bo_import);
     SET_PROC(bo_map);
+    SET_PROC(bo_unmap);
+    SET_PROC(bo_write);
+    SET_PROC(bo_get_fd);
 
     #undef SET_PROC
 }
