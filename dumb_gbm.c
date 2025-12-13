@@ -185,7 +185,7 @@ dumb_bo_create(struct gbm_device *gbm,
 
 #ifdef STRICT
     if (!(usage & GBM_BO_USE_CURSOR) &&
-        !(usage & GBM_BO_USE_SCANOUT) {
+        !(usage & GBM_BO_USE_SCANOUT)) {
         errno = EINVAL;
         return NULL;
     }
@@ -202,7 +202,7 @@ dumb_bo_create(struct gbm_device *gbm,
     create_arg.width = width;
     create_arg.height = height;
 
-    ret = drmIoctl(bo->base.gbm->v0.fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_arg);
+    ret = drmIoctl(gbm->v0.fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_arg);
     if (ret) {
         free(bo);
         return NULL;

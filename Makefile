@@ -23,11 +23,11 @@ dumb_gbm.so: ${OBJ}
 	${CC} ${XCFLAGS} -o $@ ${OBJ} ${XLDFLAGS}
 
 install: ${LIB}
-	mkdir -p ${DESTDIR}/usr${LIBDIR}
-	cp -f ${LIB} ${DESTDIR}/usr${LIBDIR}/${LIB}
+	mkdir -p ${DESTDIR}/usr${LIBDIR}/gbm
+	cp -f ${LIB} ${DESTDIR}/usr${LIBDIR}/gbm/${LIB}
 
 uninstall:
-	rm -f ${DESTDIR}/usr${LIBDIR}/${LIB}
+	rm -f ${DESTDIR}/usr${LIBDIR}/gbm/${LIB}
 clean:
 	rm -f ${LIB} ${OBJ}
 
