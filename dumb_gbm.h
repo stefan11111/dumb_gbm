@@ -30,4 +30,11 @@
 
 #include "gbm_backend_abi.h"
 
+struct gbm_dumb_bo {
+   struct gbm_bo base;
+   uint64_t size;
+   void *map;
+};
+
+
 #endif /* DUMB_GBM_H */
