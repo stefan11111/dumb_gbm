@@ -116,6 +116,7 @@ dumb_bo_from_fd(struct gbm_device *gbm,
     bo->base.v0.format = fd_data->format;
     bo->base.v0.handle.u32 = handle;
     bo->size = fd_data->stride * fd_data->height;
+    bo->bpp = dumb_get_bpp_for_format(fd_data->format);
 
     return &bo->base;
 }
@@ -170,9 +171,7 @@ dumb_bo_create(struct gbm_device *gbm,
 
     format = dumb_format_canonicalize(format);
 
-    /* Hack to not have to reimplement gbm_bo_get_bpp */
-    struct gbm_bo bpp_bo = {.v0.format = format};
-    bpp = gbm_bo_get_bpp(&bpp_bo);
+    bpp = dumb_get_bpp_for_format(format);
     if (!bpp) {
         errno = EINVAL;
         return NULL;
@@ -210,7 +209,12 @@ dumb_bo_create(struct gbm_device *gbm,
     bo->base.v0.format = format;
     bo->base.v0.handle.u32 = create_arg.handle;
     bo->size = create_arg.size;
+    bo->bpp = bpp;
 
+    /**
+     * Sadly, we have to map the buffer now, for gbm_bo_write to work.
+     * Since we have to do it for some buffers, do it for all buffers.
+     */
     if (!gbm_bo_map_dumb(bo)) {
         struct drm_mode_destroy_dumb destroy_arg;
 
@@ -250,6 +254,27 @@ dumb_bo_import(struct gbm_device *gbm, uint32_t type,
     }
 }
 
+static void *
+dumb_bo_map(struct gbm_bo *_bo,
+            uint32_t x, uint32_t y,
+            uint32_t width, uint32_t height,
+            uint32_t flags, uint32_t *stride, void **map_data)
+{
+    struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
+
+    /* This probably breaks if CHAR_BIT != 8 */
+    int cpp = (bo->bpp + 7) / 8;
+
+    if (bo->map) {
+        *map_data = (char *)bo->map + (bo->base.v0.stride * y) + (x * cpp);
+        *stride = bo->base.v0.stride;
+        return *map_data;
+    }
+
+    /* This really shouldn't happen */
+    return NULL;
+}
+
 /* vvv Loader stuff vvv */
 static void
 dumb_device_create_v0(struct gbm_device_v0 *dumb)
@@ -261,6 +286,7 @@ dumb_device_create_v0(struct gbm_device_v0 *dumb)
     SET_PROC(get_format_modifier_plane_count);
     SET_PROC(bo_create);
     SET_PROC(bo_import);
+    SET_PROC(bo_map);
 
     #undef SET_PROC
 }
