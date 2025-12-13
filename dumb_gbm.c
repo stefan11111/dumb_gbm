@@ -48,6 +48,7 @@
 #include <sys/mman.h>
 
 #include <drm.h>
+#include <drm_fourcc.h> /* for DRM_FORMAT_MOD_LINEAR */
 #include <xf86drm.h>
 
 #include "dumb_gbm.h"
@@ -325,6 +326,84 @@ dumb_bo_get_fd(struct gbm_bo *bo)
     return -1;
 }
 
+static int
+dumb_bo_get_planes(struct gbm_bo *bo)
+{
+    /* Dumb buffers are single-plane only. */
+    return 1;
+}
+
+static union gbm_bo_handle
+dumb_bo_get_handle(struct gbm_bo *bo, int plane)
+{
+    /* Dumb buffers are single-plane only. */
+    if (plane != 0) {
+        union gbm_bo_handle ret = {.s64 = -1};
+
+        errno = EINVAL;
+        return ret;
+    }
+
+    return bo->v0.handle;
+}
+
+static int
+dumb_bo_get_plane_fd(struct gbm_bo *bo, int plane)
+{
+    if (plane == 0) {
+        return dumb_bo_get_fd(bo);
+    }
+
+    errno = EINVAL;
+    return -1;
+}
+
+static uint32_t
+dumb_bo_get_stride(struct gbm_bo *bo, int plane)
+{
+    if (plane == 0) {
+        return bo->v0.stride;
+    }
+
+    errno = EINVAL;
+    return 0;
+}
+
+static uint32_t
+dumb_bo_get_offset(struct gbm_bo *bo, int plane)
+{
+    if (plane != 0) {
+        errno = EINVAL;
+    }
+
+    /* Dumb buffers have no offset */
+    return 0;
+}
+
+static uint64_t
+dumb_bo_get_modifier(struct gbm_bo *bo)
+{
+    /* Dumb buffers are linear */
+    return DRM_FORMAT_MOD_LINEAR;
+}
+
+static void
+dumb_bo_destroy(struct gbm_bo *_bo)
+{
+    struct gbm_dumb_device *dumb = (struct gbm_dumb_device*)_bo->gbm;
+    struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
+    struct drm_mode_destroy_dumb arg;
+
+    munmap(bo->map, bo->size);
+    bo->map = NULL;
+
+    memset(&arg, 0, sizeof(arg));
+    arg.handle = bo->base.v0.handle.u32;
+    drmIoctl(dumb->base.v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &arg);
+
+    free(bo);
+}
+
 /* vvv Loader stuff vvv */
 static void
 dumb_device_create_v0(struct gbm_device_v0 *dumb)
@@ -340,6 +419,13 @@ dumb_device_create_v0(struct gbm_device_v0 *dumb)
     SET_PROC(bo_unmap);
     SET_PROC(bo_write);
     SET_PROC(bo_get_fd);
+    SET_PROC(bo_get_planes);
+    SET_PROC(bo_get_handle);
+    SET_PROC(bo_get_plane_fd);
+    SET_PROC(bo_get_stride);
+    SET_PROC(bo_get_offset);
+    SET_PROC(bo_get_modifier);
+    SET_PROC(bo_destroy);
 
     #undef SET_PROC
 }
