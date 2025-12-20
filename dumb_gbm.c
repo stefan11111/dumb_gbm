@@ -95,7 +95,7 @@ gbm_bo_map_dumb(struct gbm_dumb_bo *bo)
     return bo->map;
 }
 
-static struct gbm_bo *
+static struct gbm_bo*
 dumb_bo_from_fd(struct gbm_device *gbm,
                 struct gbm_import_fd_data *fd_data)
 {
@@ -125,6 +125,27 @@ dumb_bo_from_fd(struct gbm_device *gbm,
     bo->bpp = dumb_get_bpp_for_format(fd_data->format);
 
     return &bo->base;
+}
+
+static struct gbm_bo*
+dumb_bo_from_fds(struct gbm_device *gbm,
+                 struct gbm_import_fd_modifier_data *fd_modifier_data)
+{
+    if (fd_modifier_data->num_fds != 1) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    struct gbm_import_fd_data fd_data =
+    {
+     .fd = fd_modifier_data->fds[0],
+     .width = fd_modifier_data->width,
+     .height = fd_modifier_data->height,
+     .stride = fd_modifier_data->strides[0],
+     .format = fd_modifier_data->format,
+    };
+
+    return dumb_bo_from_fd(gbm, &fd_data);
 }
 
 /* ^^^ Headers and helpers ^^^ */
@@ -249,11 +270,12 @@ dumb_bo_import(struct gbm_device *gbm, uint32_t type,
     switch (type) {
     case GBM_BO_IMPORT_WL_BUFFER:
     case GBM_BO_IMPORT_EGL_IMAGE:
-    case GBM_BO_IMPORT_FD_MODIFIER:
         errno = ENOSYS;
         return NULL;
     case GBM_BO_IMPORT_FD:
         return dumb_bo_from_fd(gbm, buffer);
+    case GBM_BO_IMPORT_FD_MODIFIER:
+        return dumb_bo_from_fds(gbm, buffer);
     default:
         errno = EINVAL;
         return NULL;
