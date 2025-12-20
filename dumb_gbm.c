@@ -412,7 +412,7 @@ dumb_bo_get_modifier(struct gbm_bo *bo)
 static void
 dumb_bo_destroy(struct gbm_bo *_bo)
 {
-    struct gbm_dumb_device *dumb = (struct gbm_dumb_device*)_bo->gbm;
+    struct gbm_device *gbm = _bo->gbm;
     struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
     struct drm_mode_destroy_dumb arg;
 
@@ -421,7 +421,7 @@ dumb_bo_destroy(struct gbm_bo *_bo)
 
     memset(&arg, 0, sizeof(arg));
     arg.handle = bo->base.v0.handle.u32;
-    drmIoctl(dumb->base.v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &arg);
+    drmIoctl(gbm->v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &arg);
 
     free(bo);
 }
