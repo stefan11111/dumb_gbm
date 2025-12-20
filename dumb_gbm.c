@@ -372,28 +372,31 @@ dumb_bo_get_handle(struct gbm_bo *bo, int plane)
 static int
 dumb_bo_get_plane_fd(struct gbm_bo *bo, int plane)
 {
-    if (plane == 0) {
-        return dumb_bo_get_fd(bo);
+    /* Dumb buffers are single-plane only. */
+    if (plane != 0) {
+        errno = EINVAL;
+        return -1;
     }
 
-    errno = EINVAL;
-    return -1;
+    return dumb_bo_get_fd(bo);
 }
 
 static uint32_t
 dumb_bo_get_stride(struct gbm_bo *bo, int plane)
 {
-    if (plane == 0) {
-        return bo->v0.stride;
+    /* Dumb buffers are single-plane only. */
+    if (plane != 0) {
+        errno = EINVAL;
+        return 0;
     }
 
-    errno = EINVAL;
-    return 0;
+    return bo->v0.stride;
 }
 
 static uint32_t
 dumb_bo_get_offset(struct gbm_bo *bo, int plane)
 {
+    /* Dumb buffers are single-plane only. */
     if (plane != 0) {
         errno = EINVAL;
     }
