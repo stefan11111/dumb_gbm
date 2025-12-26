@@ -103,8 +103,8 @@ gbm_bo_map_dumb(struct gbm_dumb_bo *bo)
     bo->map = mmap(NULL, bo->size, PROT_WRITE | PROT_READ,
                    MAP_SHARED, bo->base.gbm->v0.fd, map_arg.offset);
     if (bo->map == MAP_FAILED) {
-       bo->map = NULL;
-       return NULL;
+        bo->map = NULL;
+        return NULL;
     }
 
     return bo->map;
@@ -120,8 +120,8 @@ dumb_bo_from_fd(struct gbm_device *gbm,
 
     bo = calloc(1, sizeof(*bo));
     if (bo == NULL) {
-       errno = ENOMEM;
-       return NULL;
+        errno = ENOMEM;
+        return NULL;
     }
 
     ret = drmPrimeFDToHandle(gbm->v0.fd, fd_data->fd, &handle);
@@ -190,7 +190,6 @@ dumb_get_format_modifier_plane_count(struct gbm_device *device,
 {
 #ifdef STRICT
     if (!dumb_is_modifier_supported(modifier)) {
-        /* dumb buffers don't support modifiers */
         errno = EINVAL;
         return -1;
     }
