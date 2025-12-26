@@ -66,6 +66,21 @@ dumb_format_canonicalize(uint32_t gbm_format)
     return core->v0.format_canonicalize(gbm_format);
 }
 
+#ifdef STRICT
+static inline int
+dumb_is_modifier_supported(uint64_t modifier)
+{
+    switch (modifier) {
+    case DRM_FORMAT_MOD_LINEAR:
+    case DRM_FORMAT_MOD_INVALID:
+        return 1;
+    default:
+        /* dumb buffers don't support modifiers */
+        return 0;
+    }
+}
+#endif
+
 static void*
 gbm_bo_map_dumb(struct gbm_dumb_bo *bo)
 {
@@ -162,7 +177,7 @@ dumb_is_format_supported(struct gbm_device *gbm,
                          uint32_t usage)
 {
     /* No need to reject formats with dumb buffers */
-    return !((usage & GBM_BO_USE_CURSOR) && (usage & GBM_BO_USE_RENDERING));
+    return 1;
 }
 
 static int
@@ -171,20 +186,14 @@ dumb_get_format_modifier_plane_count(struct gbm_device *device,
                                      uint64_t modifier)
 {
 #ifdef STRICT
-    switch (modifier) {
-    case DRM_FORMAT_MOD_LINEAR:
-    case DRM_FORMAT_MOD_INVALID:
-        /* dumb buffers are single-plane only */
-        return 1;
-    default:
+    if (!dumb_is_modifier_supported(modifier)) {
         /* dumb buffers don't support modifiers */
         errno = EINVAL;
         return -1;
     }
-#else
+#endif
     /* dumb buffers are single-plane only */
     return 1;
-#endif
 }
 
 /* This function ignores modifiers */
@@ -203,9 +212,11 @@ dumb_bo_create(struct gbm_device *gbm,
     int ret;
 
 #ifdef STRICT
-    if (modifiers || count) {
-        errno = EINVAL;
-        return NULL;
+    for (unsigned i = 0; i < count; i++) {
+        if (!dumb_is_modifier_supported(modifiers[i])) {
+            errno = EINVAL;
+            return NULL;
+        }
     }
 #endif
 
@@ -216,14 +227,6 @@ dumb_bo_create(struct gbm_device *gbm,
         errno = EINVAL;
         return NULL;
     }
-
-#ifdef STRICT
-    if (!(usage & GBM_BO_USE_CURSOR) &&
-        !(usage & GBM_BO_USE_SCANOUT)) {
-        errno = EINVAL;
-        return NULL;
-    }
-#endif
 
     bo = calloc(1, sizeof *bo);
     if (!bo) {
