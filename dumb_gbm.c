@@ -170,16 +170,21 @@ dumb_get_format_modifier_plane_count(struct gbm_device *device,
                                      uint32_t format,
                                      uint64_t modifier)
 {
+#ifdef STRICT
     switch (modifier) {
     case DRM_FORMAT_MOD_LINEAR:
     case DRM_FORMAT_MOD_INVALID:
-       /* dumb buffers are single-plane only */
-       return 1;
+        /* dumb buffers are single-plane only */
+        return 1;
     default:
         /* dumb buffers don't support modifiers */
         errno = EINVAL;
         return -1;
     }
+#else
+    /* dumb buffers are single-plane only */
+    return 1;
+#endif
 }
 
 /* This function ignores modifiers */
