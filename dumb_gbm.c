@@ -48,7 +48,7 @@
 #include <sys/mman.h>
 
 #include <drm.h>
-#include <drm_fourcc.h> /* for DRM_FORMAT_MOD_LINEAR */
+#include <drm_fourcc.h> /* for DRM_FORMAT_MOD_{LINEAR,INVALID} */
 #include <xf86drm.h>
 
 #include "dumb_gbm.h"
@@ -170,8 +170,16 @@ dumb_get_format_modifier_plane_count(struct gbm_device *device,
                                      uint32_t format,
                                      uint64_t modifier)
 {
-    /* dumb buffers support neither modifiers nor planes */
-    return -1;
+    switch (modifier) {
+    case DRM_FORMAT_MOD_LINEAR:
+    case DRM_FORMAT_MOD_INVALID:
+       /* dumb buffers are single-plane only */
+       return 1;
+    default:
+        /* dumb buffers don't support modifiers */
+        errno = EINVAL;
+        return -1;
+    }
 }
 
 /* This function ignores modifiers */
