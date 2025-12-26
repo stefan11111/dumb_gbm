@@ -148,6 +148,7 @@ dumb_bo_from_fds(struct gbm_device *gbm,
 {
     for (unsigned i = 1; i < fd_modifier_data->num_fds; i++) {
         if (fd_modifier_data->fds[i] != -1) {
+            /* dumb buffers are single-plane only */
             errno = EINVAL;
             return NULL;
         }
@@ -213,14 +214,11 @@ dumb_bo_create(struct gbm_device *gbm,
     int bpp;
     int ret;
 
-#ifdef STRICT
-    for (unsigned i = 0; i < count; i++) {
-        if (!dumb_is_modifier_supported(modifiers[i])) {
-            errno = EINVAL;
-            return NULL;
-        }
-    }
-#endif
+    /**
+     * Mesa's dri gbm backend ignores modifiers
+     * without any checks when creating dumb buffers.
+     * No need to add any check here either.
+     */
 
     format = dumb_format_canonicalize(format);
 
@@ -360,10 +358,11 @@ dumb_bo_get_fd(struct gbm_bo *bo)
     }
 
     ret = drmPrimeHandleToFD(dumb->base.v0.fd, bo->v0.handle.u32, DRM_RDWR, &prime_fd);
-    if (!ret) {
-        return prime_fd;
+    if (ret) {
+        return -1;
     }
-    return -1;
+
+    return prime_fd;
 }
 
 static int
