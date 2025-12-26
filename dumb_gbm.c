@@ -118,7 +118,7 @@ dumb_bo_from_fd(struct gbm_device *gbm,
     int ret;
     uint32_t handle;
 
-    bo = calloc(1, sizeof *bo);
+    bo = calloc(1, sizeof(*bo));
     if (bo == NULL) {
        errno = ENOMEM;
        return NULL;
@@ -228,7 +228,7 @@ dumb_bo_create(struct gbm_device *gbm,
         return NULL;
     }
 
-    bo = calloc(1, sizeof *bo);
+    bo = calloc(1, sizeof(*bo));
     if (!bo) {
         errno = ENOMEM;
         return NULL;
@@ -261,7 +261,7 @@ dumb_bo_create(struct gbm_device *gbm,
     if (!gbm_bo_map_dumb(bo)) {
         struct drm_mode_destroy_dumb destroy_arg;
 
-        memset(&destroy_arg, 0, sizeof destroy_arg);
+        memset(&destroy_arg, 0, sizeof(destroy_arg));
         destroy_arg.handle = create_arg.handle;
         drmIoctl(bo->base.gbm->v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
 
