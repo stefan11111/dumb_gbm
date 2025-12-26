@@ -146,16 +146,11 @@ static struct gbm_bo*
 dumb_bo_from_fds(struct gbm_device *gbm,
                  struct gbm_import_fd_modifier_data *fd_modifier_data)
 {
-    int fd_count = 0;
-    for (unsigned i = 0; i < fd_modifier_data->num_fds; i++) {
+    for (unsigned i = 1; i < fd_modifier_data->num_fds; i++) {
         if (fd_modifier_data->fds[i] != -1) {
-            fd_count++;
+            errno = EINVAL;
+            return NULL;
         }
-    }
-
-    if (fd_count > 1) {
-        errno = EINVAL;
-        return NULL;
     }
 
     struct gbm_import_fd_data fd_data =
