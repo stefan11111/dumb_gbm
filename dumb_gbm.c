@@ -41,9 +41,7 @@
 #include <errno.h>
 #include <fcntl.h> /* for O_RDWR, which DRM_RDWR is defined as */
 
-#ifdef STRICT
 #include <assert.h>
-#endif
 
 #include <sys/mman.h>
 
@@ -66,7 +64,6 @@ dumb_format_canonicalize(uint32_t gbm_format)
     return core->v0.format_canonicalize(gbm_format);
 }
 
-#ifdef STRICT
 static inline int
 dumb_is_modifier_supported(uint64_t modifier)
 {
@@ -79,7 +76,6 @@ dumb_is_modifier_supported(uint64_t modifier)
         return 0;
     }
 }
-#endif
 
 static void*
 gbm_bo_map_dumb(struct gbm_dumb_bo *bo)
@@ -149,9 +145,14 @@ dumb_bo_from_fds(struct gbm_device *gbm,
     for (unsigned i = 1; i < fd_modifier_data->num_fds; i++) {
         if (fd_modifier_data->fds[i] != -1) {
             /* dumb buffers are single-plane only */
-            errno = EINVAL;
+            errno = ENOTSUP;
             return NULL;
         }
+    }
+
+    if (!dumb_is_modifier_supported(fd_modifier_data->modifier)) {
+        errno = ENOTSUP;
+        return NULL;
     }
 
     struct gbm_import_fd_data fd_data =
@@ -188,17 +189,15 @@ dumb_get_format_modifier_plane_count(struct gbm_device *device,
                                      uint32_t format,
                                      uint64_t modifier)
 {
-#ifdef STRICT
     if (!dumb_is_modifier_supported(modifier)) {
-        errno = EINVAL;
+        errno = ENOTSUP;
         return -1;
     }
-#endif
+
     /* dumb buffers are single-plane only */
     return 1;
 }
 
-/* This function ignores modifiers */
 static struct gbm_bo*
 dumb_bo_create(struct gbm_device *gbm,
                uint32_t width, uint32_t height,
@@ -214,10 +213,24 @@ dumb_bo_create(struct gbm_device *gbm,
     int ret;
 
     /**
-     * Mesa's dri gbm backend ignores modifiers
-     * without any checks when creating dumb buffers.
-     * No need to add any check here either.
+     * We diverge from mesa's dri backend here.
+     *
+     * The dri backend ignores modifiers when creating dumb buffers.
+     *
+     * Here, we don't create a bo if no modifier is supported.
      */
+    if (modifiers) {
+        int found = !count;
+        for (unsigned i = 0; i < count; i++) {
+            if (dumb_is_modifier_supported(modifiers[i])) {
+                found = 1;
+            }
+        }
+        if (!found) {
+            errno = ENOTSUP;
+            return NULL;
+        }
+    }
 
     format = dumb_format_canonicalize(format);
 
@@ -321,12 +334,10 @@ dumb_bo_map(struct gbm_bo *_bo,
 static void
 dumb_bo_unmap(struct gbm_bo *_bo, void *map_data)
 {
-#ifdef STRICT
     struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
 
     assert(map_data >= bo->map);
     assert((char*)map_data < ((char*)bo->map + bo->size));
-#endif
 }
 
 static int
@@ -378,7 +389,7 @@ dumb_bo_get_handle(struct gbm_bo *bo, int plane)
     if (plane != 0) {
         union gbm_bo_handle ret = {.s64 = -1};
 
-        errno = EINVAL;
+        errno = ENOTSUP;
         return ret;
     }
 
@@ -390,7 +401,7 @@ dumb_bo_get_plane_fd(struct gbm_bo *bo, int plane)
 {
     /* Dumb buffers are single-plane only. */
     if (plane != 0) {
-        errno = EINVAL;
+        errno = ENOTSUP;
         return -1;
     }
 
@@ -402,7 +413,7 @@ dumb_bo_get_stride(struct gbm_bo *bo, int plane)
 {
     /* Dumb buffers are single-plane only. */
     if (plane != 0) {
-        errno = EINVAL;
+        errno = ENOTSUP;
         return 0;
     }
 
@@ -414,7 +425,7 @@ dumb_bo_get_offset(struct gbm_bo *bo, int plane)
 {
     /* Dumb buffers are single-plane only. */
     if (plane != 0) {
-        errno = EINVAL;
+        errno = ENOTSUP;
     }
 
     /* Dumb buffers have no offset */

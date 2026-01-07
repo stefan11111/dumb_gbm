@@ -14,10 +14,6 @@ OBJ = dumb_gbm.o
 
 LIB = dumb_gbm.so
 
-ifeq ($(STRICT), 1)
-	XCFLAGS += -DSTRICT
-endif
-
 all: ${LIB}
 
 .c.o:
