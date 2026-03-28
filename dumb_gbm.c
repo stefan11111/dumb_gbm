@@ -51,6 +51,14 @@
 
 #include "dumb_gbm.h"
 
+#ifdef USE_LIBEPOXY
+#define MESA_EGL_NO_X11_HEADERS
+#define EGL_NO_X11
+#include <epoxy/gl.h>
+#include <epoxy/egl.h>
+#include <unistd.h> /* close() */
+#endif
+
 #define DUMB_BACKEND_ABI_VERSION 1
 #define DUMB_BACKEND_NAME "dumb"
 
@@ -166,6 +174,147 @@ dumb_bo_from_fds(struct gbm_device *gbm,
 
     return dumb_bo_from_fd(gbm, &fd_data);
 }
+
+#ifdef USE_LIBEPOXY
+static int
+dumb_egl_image_get_size_with_target(GLenum target, EGLImage image,
+                                    uint32_t *width, uint32_t *height)
+{
+    GLint _width = 0;
+    GLint _height = 0;
+    GLuint texture = 0;
+
+    glGenTextures(1, &texture);
+    glBindTexture(target, texture);
+    glEGLImageTargetTexture2DOES(target, image);
+    if (glGetError() != GL_NO_ERROR) {
+        goto fail;
+    }
+
+    glGetTexLevelParameteriv(target, 0, GL_TEXTURE_WIDTH, &_width);
+    if (glGetError() != GL_NO_ERROR) {
+        goto fail;
+    }
+
+    glGetTexLevelParameteriv(target, 0, GL_TEXTURE_HEIGHT, &_height);
+    if (glGetError() != GL_NO_ERROR) {
+        goto fail;
+    }
+
+    glBindTexture(target, 0);
+    glDeleteTextures(1, &texture);
+
+    *width = _width;
+    *height = _height;
+    return 1;
+
+fail:
+    glBindTexture(target, 0);
+    glDeleteTextures(1, &texture);
+    *width = 0;
+    *height = 0;
+    return 0;
+}
+
+static int
+dumb_egl_image_get_size(EGLImage image,
+                        uint32_t *width, uint32_t *height)
+{
+    int try_2d = 0;
+    int try_external = 0;
+
+    if (epoxy_has_gl_extension("GL_OES_EGL_image")) {
+        try_2d = 1;
+        try_external = 1;
+    } else if (epoxy_has_gl_extension("GL_OES_EGL_image_external")) {
+        try_external = 1;
+    }
+
+    if (!try_2d && !try_external) {
+        /* glEGLImageTargetTexture2DOES is not available */
+        errno = ENOSYS;
+        return 0;
+    }
+
+    if (!try_external || !dumb_egl_image_get_size_with_target(GL_TEXTURE_EXTERNAL_OES, image, width, height)) {
+        if (!try_2d || !dumb_egl_image_get_size_with_target(GL_TEXTURE_2D, image, width, height)) {
+            /* Couldn't get any kind of texture from our image */
+            errno = EINVAL;
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static struct gbm_bo*
+dumb_bo_from_eglimage(struct gbm_device *gbm, EGLImage *image)
+{
+    struct gbm_bo *ret = NULL;
+
+#ifndef GBM_MAX_PLANES
+/* This is the actual value, and what the spec says it should be */
+#define GBM_MAX_PLANES 4
+#endif
+
+    int fourcc = 0;
+    int num_planes = 0;
+    EGLuint64KHR modifiers[GBM_MAX_PLANES] = {0};
+
+    uint32_t width = 0;
+    uint32_t height = 0;
+
+    EGLDisplay *dpy = eglGetCurrentDisplay();
+    if (dpy == EGL_NO_DISPLAY) {
+        /* No EGLDisplay is current */
+        errno = EINVAL;
+        return NULL;
+    }
+
+    if (!epoxy_has_egl_extension(dpy, "EGL_MESA_image_dma_buf_export")) {
+        /* We need to export the EGLImage as dmabufs */
+        errno = ENOSYS;
+        return NULL;
+    }
+
+    if (!dumb_egl_image_get_size(image, &width, &height)) {
+        /* We couldn't get the size of our image */
+        return NULL;
+    }
+
+    if (!eglExportDMABUFImageQueryMESA(dpy, image, &fourcc, &num_planes, modifiers)) {
+        return NULL;
+    }
+    assert(num_planes <= GBM_MAX_PLANES);
+    struct gbm_import_fd_modifier_data fd_modifier_data =
+    {
+        .width = width,
+        .height = height,
+        .format = fourcc, /* GBM and DRM formats are the same */
+        .num_fds = num_planes,
+        .modifier = modifiers[0],
+        .fds = {-1, -1, -1, -1},
+        .strides = {0},
+        .offsets = {0},
+    };
+/* If the spec somehow changes in the future */
+#if GBM_MAX_PLANES != 4
+    memset(fd_modifier_data.fds, -1, sizeof(fd_modifier_data));
+#endif
+    if (eglExportDMABUFImageMESA(dpy, image,
+                                 fd_modifier_data.fds,
+                                 fd_modifier_data.strides,
+                                 fd_modifier_data.offsets)) {
+        ret = dumb_bo_from_fds(gbm, &fd_modifier_data);
+    }
+    for (int i = 0; i < num_planes; i++) {
+        if (fd_modifier_data.fds[i] != -1) {
+            close(fd_modifier_data.fds[i]);
+        }
+    }
+    return ret;
+}
+#endif
 
 /* ^^^ Headers and helpers ^^^ */
 
@@ -297,13 +446,19 @@ dumb_bo_import(struct gbm_device *gbm, uint32_t type,
 
     switch (type) {
     case GBM_BO_IMPORT_WL_BUFFER:
-    case GBM_BO_IMPORT_EGL_IMAGE:
         errno = ENOSYS;
         return NULL;
     case GBM_BO_IMPORT_FD:
         return dumb_bo_from_fd(gbm, buffer);
     case GBM_BO_IMPORT_FD_MODIFIER:
         return dumb_bo_from_fds(gbm, buffer);
+    case GBM_BO_IMPORT_EGL_IMAGE:
+#ifdef USE_LIBEPOXY
+        return dumb_bo_from_eglimage(gbm, buffer);
+#else
+        errno = ENOSYS;
+        return NULL;
+#endif
     default:
         errno = EINVAL;
         return NULL;

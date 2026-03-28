@@ -8,6 +8,11 @@ XCFLAGS = ${CFLAGS} -std=c99 -fPIC \
 XLDFLAGS = ${LDFLAGS} $(shell pkg-config --libs libdrm) \
 		  -shared -Wl,-soname,dumb_gbm.so
 
+ifeq ($(USE_LIBEPOXY), 1)
+        XCFLAGS += -DUSE_LIBEPOXY $(shell pkg-config --cflags epoxy)
+        XLDFLAGS += $(shell pkg-config --libs epoxy)
+endif
+
 LIBDIR ?= /lib64
 
 OBJ = dumb_gbm.o
