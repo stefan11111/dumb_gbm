@@ -48,6 +48,7 @@
 #include <drm.h>
 #include <drm_fourcc.h> /* for DRM_FORMAT_MOD_{LINEAR,INVALID} */
 #include <xf86drm.h>
+#include <xf86drmMode.h>
 
 #include "dumb_gbm.h"
 
@@ -80,24 +81,24 @@ dumb_is_modifier_supported(uint64_t modifier)
 static void*
 gbm_bo_map_dumb(struct gbm_dumb_bo *bo)
 {
-    struct drm_mode_map_dumb map_arg;
-    int ret;
+    uint64_t offset = 0;
+    int fd;
+    uint32_t handle;
 
     if (bo->map) {
         return bo->map;
     }
 
-    memset(&map_arg, 0, sizeof(map_arg));
-    map_arg.handle = bo->base.v0.handle.u32;
+    fd = bo->base.gbm->v0.fd;
+    handle = bo->base.v0.handle.u32;
 
-    ret = drmIoctl(bo->base.gbm->v0.fd, DRM_IOCTL_MODE_MAP_DUMB, &map_arg);
-    if (ret) {
+    if (drmModeMapDumbBuffer(fd, handle, &offset)) {
         return NULL;
     }
 
     /* We allow reading from gpu memory, but it is very slow and not recomended */
     bo->map = mmap(NULL, bo->size, PROT_WRITE | PROT_READ,
-                   MAP_SHARED, bo->base.gbm->v0.fd, map_arg.offset);
+                   MAP_SHARED, fd, offset);
     if (bo->map == MAP_FAILED) {
         bo->map = NULL;
         return NULL;
