@@ -57,6 +57,9 @@
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
+static void
+dumb_bo_destroy(struct gbm_bo *_bo);
+
 static const struct gbm_core *core;
 
 static inline uint32_t
@@ -207,11 +210,8 @@ dumb_bo_create(struct gbm_device *gbm,
                const uint64_t *modifiers,
                const unsigned int count)
 {
-    struct drm_mode_create_dumb create_arg;
     struct gbm_dumb_bo *bo;
-
     int bpp;
-    int ret;
 
     /**
      * We diverge from mesa's dri backend here.
@@ -247,13 +247,8 @@ dumb_bo_create(struct gbm_device *gbm,
         return NULL;
     }
 
-    memset(&create_arg, 0, sizeof(create_arg));
-    create_arg.bpp = bpp;
-    create_arg.width = width;
-    create_arg.height = height;
-
-    ret = drmIoctl(gbm->v0.fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_arg);
-    if (ret) {
+    if (drmModeCreateDumbBuffer(gbm->v0.fd, width, height, bpp, 0 /* flags */,
+                                &bo->base.v0.handle.u32, &bo->base.v0.stride, &bo->size)) {
         free(bo);
         return NULL;
     }
@@ -261,10 +256,7 @@ dumb_bo_create(struct gbm_device *gbm,
     bo->base.gbm = gbm;
     bo->base.v0.width = width;
     bo->base.v0.height = height;
-    bo->base.v0.stride = create_arg.pitch;
     bo->base.v0.format = format;
-    bo->base.v0.handle.u32 = create_arg.handle;
-    bo->size = create_arg.size;
     bo->bpp = bpp;
 
     /**
@@ -272,13 +264,7 @@ dumb_bo_create(struct gbm_device *gbm,
      * Since we have to do it for some buffers, do it for all buffers.
      */
     if (!gbm_bo_map_dumb(bo)) {
-        struct drm_mode_destroy_dumb destroy_arg;
-
-        memset(&destroy_arg, 0, sizeof(destroy_arg));
-        destroy_arg.handle = create_arg.handle;
-        drmIoctl(bo->base.gbm->v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
-
-        free(bo);
+        dumb_bo_destroy(&bo->base);
         return NULL;
     }
 
@@ -445,15 +431,13 @@ dumb_bo_destroy(struct gbm_bo *_bo)
 {
     struct gbm_device *gbm = _bo->gbm;
     struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
-    struct drm_mode_destroy_dumb arg;
 
-    munmap(bo->map, bo->size);
-    bo->map = NULL;
+    if (bo->map) {
+        munmap(bo->map, bo->size);
+        bo->map = NULL;
+    }
 
-    memset(&arg, 0, sizeof(arg));
-    arg.handle = bo->base.v0.handle.u32;
-    drmIoctl(gbm->v0.fd, DRM_IOCTL_MODE_DESTROY_DUMB, &arg);
-
+    drmModeDestroyDumbBuffer(gbm->v0.fd, bo->base.v0.handle.u32);
     free(bo);
 }
 
