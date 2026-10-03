@@ -137,7 +137,6 @@ dumb_bo_from_fd(struct gbm_device *gbm,
     bo->base.v0.format = fd_data->format;
     bo->base.v0.handle.u32 = handle;
     bo->size = fd_data->stride * fd_data->height;
-    bo->bpp = dumb_get_bpp_for_format(fd_data->format);
 
     return &bo->base;
 }
@@ -257,7 +256,6 @@ dumb_bo_create(struct gbm_device *gbm,
     bo->base.v0.width = width;
     bo->base.v0.height = height;
     bo->base.v0.format = format;
-    bo->bpp = bpp;
 
     /**
      * Sadly, we have to map the buffer now, for gbm_bo_write to work.
@@ -304,9 +302,10 @@ dumb_bo_map(struct gbm_bo *_bo,
             uint32_t flags, uint32_t *stride, void **map_data)
 {
     struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
+    int bpp = dumb_get_bpp_for_format(_bo->v0.format);
 
     /* This probably breaks if CHAR_BIT != 8 */
-    int cpp = (bo->bpp + 7) / 8;
+    int cpp = (bpp + 7) / 8;
 
     if (bo->map) {
         *map_data = (char *)bo->map + (bo->base.v0.stride * y) + (x * cpp);

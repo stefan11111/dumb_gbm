@@ -34,7 +34,6 @@ struct gbm_dumb_bo {
    struct gbm_bo base; /* Needs to be the first field */
 
    uint64_t size;
-   int bpp;
    void *map;
 };
 
