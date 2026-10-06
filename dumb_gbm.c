@@ -41,8 +41,6 @@
 #include <errno.h>
 #include <fcntl.h> /* for O_RDWR, which DRM_RDWR is defined as */
 
-#include <assert.h>
-
 #include <sys/mman.h>
 
 #include <drm.h>
@@ -320,10 +318,6 @@ dumb_bo_map(struct gbm_bo *_bo,
 static void
 dumb_bo_unmap(struct gbm_bo *_bo, void *map_data)
 {
-    struct gbm_dumb_bo *bo = (struct gbm_dumb_bo*)_bo;
-
-    assert(map_data >= bo->map);
-    assert((char*)map_data < ((char*)bo->map + bo->size));
 }
 
 static int
