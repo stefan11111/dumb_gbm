@@ -31,10 +31,17 @@
 #include "gbm_backend_abi.h"
 
 struct gbm_dumb_bo {
-   struct gbm_bo base; /* Needs to be the first field */
+    struct gbm_bo base; /* Needs to be the first field */
 
-   uint64_t size;
-   void *map;
+    int is_imported;
+    int num_planes;
+    uint32_t handles[GBM_MAX_PLANES];
+    int strides[GBM_MAX_PLANES];
+    int offsets[GBM_MAX_PLANES];
+    uint64_t modifier;
+
+    uint64_t size;
+    void *map;
 };
 
 struct gbm_dumb_device {
